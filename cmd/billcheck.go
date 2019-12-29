@@ -149,6 +149,11 @@ func saveResult(bills []BillInfo, fileName string) {
 			continue
 		}
 		w := csv.NewWriter(f)
+		for ri := range records {
+			if records[ri][4] != "" && ri != 0 {
+				records[ri][4] = "\"" + records[ri][4] + "\""
+			}
+		}
 		err = w.WriteAll(records)
 		if err != nil {
 			fmt.Printf("保存文件失败：%s", err)
@@ -229,23 +234,23 @@ func checkBill(bills []BillInfo, pInfo []PayInfo, wInfo []PayInfo) (all, notok [
 	//skipByPlatformCount := 0
 	//freeRedoCount := 0
 	fmt.Printf("新做订单 %d 条，占比 %.2f%% \n", billCount-freeRedoCount, float64(billCount-freeRedoCount)/float64(billCount)*100)
-	PrintPlatformInfo(billPlatformCount, billCount-freeRedoCount)
+	PrintPlatformInfo(billPlatformCount, billCount-freeRedoCount, billPlatformCount)
 	fmt.Printf("重做订单 %d 条，占比 %.2f%% \n", freeRedoCount, float64(freeRedoCount)/float64(billCount)*100)
-	PrintPlatformInfo(freeRedoPlatformCount, freeRedoCount)
+	PrintPlatformInfo(freeRedoPlatformCount, freeRedoCount, billPlatformCount)
 	fmt.Printf("有效订单中因平台因素跳过的有 %d 条，占比 %.2f%% \n", skipByPlatformCount, float64(skipByPlatformCount)/float64(billCount-freeRedoCount)*100)
-	PrintPlatformInfo(skipByPlatformPlatformCount, skipByPlatformCount)
+	PrintPlatformInfo(skipByPlatformPlatformCount, skipByPlatformCount, billPlatformCount)
 	fmt.Printf("有效订单中正常收款的有 %d 条，占比 %.2f%% \n", okBillCount, float64(okBillCount)/float64(billCount-freeRedoCount)*100)
-	PrintPlatformInfo(okBillPlatformCount, okBillCount)
+	PrintPlatformInfo(okBillPlatformCount, okBillCount, billPlatformCount)
 
 	fmt.Printf("有效订单中金额不匹配的有 %d 条，占比 %.2f%% \n", priceUnequalCount, float64(priceUnequalCount)/float64(billCount-freeRedoCount)*100)
-	PrintPlatformInfo(priceUnequalPlatformCount, priceUnequalCount)
+	PrintPlatformInfo(priceUnequalPlatformCount, priceUnequalCount, billPlatformCount)
 
 	fmt.Printf("有效订单中未找到收款记录的有 %d 条，占比 %.2f%% \n", notFoundCount, float64(notFoundCount)/float64(billCount-freeRedoCount)*100)
-	PrintPlatformInfo(notFoundPlatformCount, notFoundCount)
+	PrintPlatformInfo(notFoundPlatformCount, notFoundCount, billPlatformCount)
 
 	return bills, notOKBills
 }
-func PrintPlatformInfo(info map[string]int, total int) {
+func PrintPlatformInfo(info map[string]int, total int, platformsCount map[string]int) {
 	type kv struct {
 		Key   string
 		Value int
@@ -261,7 +266,12 @@ func PrintPlatformInfo(info map[string]int, total int) {
 	})
 
 	for _, kv := range ss {
-		fmt.Printf("\t'%s' 站点 %d 条，占比 %.2f%% \n", kv.Key, kv.Value, float64(kv.Value)/float64(total)*100)
+		fmt.Printf("\t'%s' 站点 %d 条，占本站点订单 %.2f%%，占比 %.2f%% \n",
+			kv.Key,
+			kv.Value,
+			float64(kv.Value)/float64(platformsCount[kv.Key])*100,
+			float64(kv.Value)/float64(total)*100,
+		)
 	}
 
 }
@@ -270,7 +280,7 @@ func getAllPayInfo(payInfosList ...[]PayInfo) map[string]PayInfo {
 	for _, payInfos := range payInfosList {
 		for _, pay := range payInfos {
 			if _, ok := pays[pay.BillID]; ok {
-				log.Warn(fmt.Sprintf("发现重复订单号 '%s' ", pay.BillID))
+				//log.Warn(fmt.Sprintf("发现重复订单号 '%s' ", pay.BillID))
 				continue
 			}
 			pays[pay.BillID] = pay
@@ -303,7 +313,7 @@ func parseWorldPayData(oriData [][]string) []PayInfo {
 	fmt.Printf("文件中共有 %d 条信息 \n", len(oriData)-8)
 	p := make([]PayInfo, 0, 500000)
 	for _, row := range oriData {
-		if row[3] == "CAPTURED" {
+		if row[3] == "CAPTURED" || row[3] == "SETTLED" {
 
 			billPrice, err := strconv.ParseFloat(strings.ReplaceAll(row[6], ",", ""), 32)
 			if err != nil {
