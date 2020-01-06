@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/csv"
 	"fmt"
@@ -10,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jinlingan/billcheck/utils"
 
 	"github.com/360EntSecGroup-Skylar/excelize"
 	log "github.com/sirupsen/logrus"
@@ -136,7 +137,7 @@ func saveResult(bills []BillInfo, fileName string) {
 		records = append(records, all)
 	}
 	for {
-		filePath := getInput("文件保存目录：")
+		filePath := utils.GetInput("文件保存目录：")
 		fullFileName := filePath + string(os.PathSeparator) + fileName
 		f, err := os.OpenFile(fullFileName, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0666)
 		if err != nil {
@@ -292,7 +293,7 @@ func getAllPayInfo(payInfosList ...[]PayInfo) map[string]PayInfo {
 func readWorldPayInfo() []PayInfo {
 	payInfos := make([]PayInfo, 0, 500000)
 	for {
-		fileName := getInput("请输入 WorldPay 收款平台数据文件（输入回车停止加载）：")
+		fileName := utils.GetInput("请输入 WorldPay 收款平台数据文件（输入回车停止加载）：")
 		if fileName == "" {
 			return payInfos
 		}
@@ -333,7 +334,7 @@ func readPayPalInfoloop() []PayInfo {
 	payInfos := make([]PayInfo, 0, 500000)
 
 	for {
-		fileName := getInput("请输入 PayPal 收款平台数据文件（输入回车停止加载）：")
+		fileName := utils.GetInput("请输入 PayPal 收款平台数据文件（输入回车停止加载）：")
 		if fileName == "" {
 			return payInfos
 		}
@@ -385,7 +386,7 @@ func parsePayPalData(oriData [][]string) []PayInfo {
 // /Users/jinlin/Downloads/11月平台数据导出（收入核对）1111.xlsx
 func readBillInfo() []BillInfo {
 	for {
-		fileName := getInput("请输入部门内部平台订单数据文件：")
+		fileName := utils.GetInput("请输入部门内部平台订单数据文件：")
 		f, err := excelize.OpenFile(fileName)
 		if err != nil {
 			log.Warnf("读取 Excel 文件异常： %s", err)
@@ -412,7 +413,7 @@ func readExcelSheet(file *excelize.File) [][]string {
 		}
 		buffer.WriteString("请选择一个进行加载（请输入左侧编号）：")
 		fmt.Print(buffer.String())
-		sNum := getInput("")
+		sNum := utils.GetInput("")
 		num, err := strconv.Atoi(sNum)
 		if err != nil {
 			fmt.Println("解析输入异常，输入的内容好像不是编号")
@@ -523,16 +524,4 @@ func parseCompanyData(data [][]string) []BillInfo {
 	}
 
 	return bs
-}
-
-// 获取用户输入
-func getInput(out string) string {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print(out)
-	text, err := reader.ReadString('\n')
-	text = strings.TrimSpace(text)
-	if err != nil {
-		log.Warnf("读取输入异常 %s", err)
-	}
-	return text
 }
