@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tealeg/xlsx"
-
 	"github.com/jinlingan/billcheck/utils"
 
+	"github.com/360EntSecGroup-Skylar/excelize"
 	log "github.com/sirupsen/logrus"
+	"github.com/tealeg/xlsx"
 )
 
 var SkipPlatform = []string{
@@ -25,7 +25,7 @@ var SkipPlatform = []string{
 	"营销样品",
 }
 
-var PlatformGroup = map[string]string{
+var PlatformOrderPrefix = map[string]string{
 	"aliexpress":                        "阿里平台",
 	"批发商订单专用平台":                         "批发商订单",
 	"Amazon - 1":                        "亚马逊1",
@@ -33,7 +33,7 @@ var PlatformGroup = map[string]string{
 	"营销样品":                              "营销样品",
 	"014-脚丫款品类 - momsbaby.net":          "所有站群",
 	"054-袜子 - thepupsocks.com":          "所有站群",
-	"the-buckyballs":                    "巴克球",
+	"the-buckyballs":                    "",
 	"Shopify平台 - medjewlr.com":          "所有站群",
 	"Shopify平台 - lightfulname.com":      "所有站群",
 	"Shopify平台 - Pettsy.com":            "所有站群",
@@ -81,61 +81,6 @@ var PlatformGroup = map[string]string{
 	"036-Bar系列 - mybarnecklace.com":     "所有站群",
 	"010-家庭款品类 - belemom.com":           "所有站群",
 	"067-路标相框-myheartgift.com":          "所有站群",
-	"042-锤痕系列 - hammeredstamp.com":      "所有站群",
-	"001-宠物系列英语站 - bestpetnecklace.com": "所有站群",
-	"078-自然花系列-flowerwe.com":            "所有站群",
-	"017-月亮款品类 - moonoble.com":          "所有站群",
-	"047-城市概念 - cityscapering.com":      "所有站群",
-	"079-穆斯林首饰站-islamicnecklace.com":    "所有站群",
-	"015-脚丫款品类 - feetale.com":           "所有站群",
-	"038-家庭生辰石系列 - familytreehut.com":   "所有站群",
-}
-
-var PlatformOrderPrefix = map[string]string{
-	"Getnamenecklace":                   "",
-	"portraitnecklace.com":              "portrait-",
-	"Obtenircollierprenom.fr":           "obten-",
-	"039-家庭生辰石系列 - craftfamilytree.com": "craftfamilytree-",
-	"034-家庭系列 - thefamilynecklace.com":  "thefamilynecklace-",
-	"068-路标相框-signgifts.com":            "signgifts-",
-	"073-照片logo球系列-myballgift.com":      "myballgift-",
-	"046-城市概念 - mycityoutline.com":      "mycityoutline-",
-	"077-硬币系列-mynamecoins.com":          "mynamecoins-",
-	"Roseinside.com":                    "roseinside-",
-	"074-定制人偶系列-myfacefigure.com":       "myfacefigure-",
-	"028-无穷大品类 - namedinfinity.com":     "namedinfinity-",
-	"Bekommenamenskette.com":            "bekomme-",
-	"012-彩宝款品类 - gemadam.com":           "gemadam-",
-	"029-无穷大品类 - myinfinitys.com":       "myinfinitys-",
-	"016-月亮款品类 - hexmoon.com":           "hexmoon-",
-	"052-骨灰盒系列-ashesnecklace.com":       "ashesnecklace-",
-	"荷兰站 - krijgnaamketting":            "krijgnaamketting-",
-	"080-自然花系列-floralnecklace.com":      "floralnecklace-",
-	"011-家庭款品类 - familydesign.net":      "familydesign-",
-	"Obtenercollarconnombre 西语":         "obtener-",
-	"Cheapnamenecklace.com":             "cheapnamenecklace-",
-	"意大利站 - nomecollana.com":            "nomecollana-",
-	"035-家庭系列 - familyengraved.com":     "familyengraved-",
-	"061-木质纪念品系列-thesephoto.com":        "thesephoto-",
-	"Beaustar.com":                      "beaustar-",
-	"022-照片品类 - photosfeel.com":         "photosfeel-",
-	"Custom-necklace.com":               "cn-",
-	"003-宠物系列法语站 - monchanceux.com":     "monchanceux-",
-	"002-宠物系列英语站 - mypetbuzz.com":       "mypetbuzz-",
-	"063-仿真头骨系列-runskull.com":           "runskull-",
-	"013-彩宝款品类 - bestbirthstone.net":    "bestbirthstone-",
-	"062-木质纪念品系列-myphotoideas.com":      "myphotoideas-",
-	"076-宠物系列-petbey.com":               "petbey-",
-	"021-MO品类 - monogramsign.com":       "monogramsign-",
-	"024-名字品类 - mynamehut.com":          "mynamehut-",
-	"045-嘻哈系列 - icedoutdesign.com":      "icedoutdesign-",
-	"004-宠物系列德语站 - haustierkette.com":   "haustierkette-",
-	"Sheown.com":                    "sheown-",
-	"Obtercolarcomnome 葡语":          "obtercol-",
-	"031-钱包系列 - walletree.com":      "walletree-",
-	"036-Bar系列 - mybarnecklace.com": "mybarnecklace-",
-	"010-家庭款品类 - belemom.com":       "belemom-",
-	"067-路标相框-myheartgift.com":      "myheartgift-",
 }
 
 type BillInfo struct {
@@ -167,14 +112,8 @@ type PayInfo struct {
 }
 
 func main() {
-	bills := readBillInfo()
-	paypalInfo := readPayPalInfoloop()
-	worldpayInof := readWorldPayInfo()
-	all, notOKBills := checkBill(bills, paypalInfo, worldpayInof)
-	fmt.Println("保存异常订单")
-	saveResult(notOKBills, "NotOKBills.csv")
-	fmt.Println("保存所有订单")
-	saveResult(all, "ALLBills.csv")
+	readBillInfo()
+	readBillInfo2()
 
 }
 
@@ -185,25 +124,18 @@ func saveResult(bills []BillInfo, fileName string) {
 		"订单状态",
 		"应收金额",
 		"实收金额",
-		"归类",
 	}
 	head = append(head, bills[0].OldData...)
 	records = append(records, head)
-	group := "未知归类"
 	for rowIndex := 1; rowIndex < len(bills); rowIndex++ {
-
-		new := []string{"", "", "", "", group}
+		new := []string{"", "", "", ""}
 		if bills[rowIndex].IsBill {
-			group = "未知归类"
-			if g, ok := PlatformGroup[bills[rowIndex].PlatformName]; ok {
-				group = g
-			}
+
 			new = []string{
 				bills[rowIndex].BillID,
 				bills[rowIndex].CheckStatus,
 				fmt.Sprintf("%.2f", bills[rowIndex].TotalPrice),
 				fmt.Sprintf("%.2f", bills[rowIndex].CheckPrice),
-				group,
 			}
 		}
 
@@ -371,7 +303,7 @@ func readWorldPayInfo() []PayInfo {
 		if fileName == "" {
 			return payInfos
 		}
-		f, err := xlsx.OpenFile(fileName)
+		f, err := excelize.OpenFile(fileName)
 		if err != nil {
 			log.Warnf("读取 Excel 文件异常： %s", err)
 			continue
@@ -388,7 +320,7 @@ func parseWorldPayData(oriData [][]string) []PayInfo {
 	fmt.Printf("文件中共有 %d 条信息 \n", len(oriData)-8)
 	p := make([]PayInfo, 0, 500000)
 	for _, row := range oriData {
-		if len(row) >= 5 && (row[3] == "CAPTURED" || row[3] == "SETTLED") {
+		if row[3] == "CAPTURED" || row[3] == "SETTLED" {
 
 			billPrice, err := strconv.ParseFloat(strings.ReplaceAll(row[6], ",", ""), 32)
 			if err != nil {
@@ -457,7 +389,24 @@ func parsePayPalData(oriData [][]string) []PayInfo {
 	return p
 }
 
+// /Users/jinlin/Downloads/11月平台数据导出（收入核对）1111.xlsx
 func readBillInfo() []BillInfo {
+	for {
+		fileName := utils.GetInput("请输入部门内部平台订单数据文件：")
+		f, err := excelize.OpenFile(fileName)
+		if err != nil {
+			log.Warnf("读取 Excel 文件异常： %s", err)
+			continue
+		}
+		//oriData := readExcelSheet(f)
+		readExcelSheet(f)
+		return nil
+		//return parseCompanyData(oriData)
+	}
+}
+
+// /Users/jinlin/Downloads/11月平台数据导出（收入核对）1111.xlsx
+func readBillInfo2() []BillInfo {
 	for {
 		fileName := utils.GetInput("请输入部门内部平台订单数据文件：")
 		begin := time.Now()
@@ -467,13 +416,15 @@ func readBillInfo() []BillInfo {
 			log.Warnf("读取 Excel 文件异常： %s", err)
 			continue
 		}
-		oriData := readExcelSheet(f)
-		return parseCompanyData(oriData)
+		//oriData := readExcelSheet2(f)
+		readExcelSheet2(f)
+		//return parseCompanyData(oriData)
+		return nil
 	}
 
 }
 
-func readExcelSheet(file *xlsx.File) [][]string {
+func readExcelSheet2(file *xlsx.File) [][]string {
 
 	for {
 		var buffer bytes.Buffer
@@ -493,7 +444,11 @@ func readExcelSheet(file *xlsx.File) [][]string {
 		}
 
 		if num >= 0 && num < len(sheets) {
-			oriData := readSheet(sheets[num])
+			oriData, err := readSheet2(sheets[num])
+			if err != nil {
+				fmt.Println("读取 Sheet 页数据异常")
+				continue
+			}
 			return oriData
 
 		} else {
@@ -502,7 +457,7 @@ func readExcelSheet(file *xlsx.File) [][]string {
 		}
 	}
 }
-func readSheet(sheet *xlsx.Sheet) [][]string {
+func readSheet2(sheet *xlsx.Sheet) ([][]string, error) {
 	begin := time.Now()
 	rs := make([][]string, len(sheet.Rows))
 	for i := range sheet.Rows {
@@ -511,10 +466,61 @@ func readSheet(sheet *xlsx.Sheet) [][]string {
 			r[j] = sheet.Rows[i].Cells[j].Value
 		}
 		rs[i] = r
+
 	}
 
 	fmt.Printf("读取数据 %d 条，耗时 %f 秒\n", len(sheet.Rows), time.Since(begin).Seconds())
-	return rs
+	return rs, nil
+}
+
+func readExcelSheet(file *excelize.File) [][]string {
+	for {
+		var buffer bytes.Buffer
+		buffer.WriteString("找到以下 Sheet 页：\n")
+		sheets := file.GetSheetMap()
+
+		ids := make([]int, 0, len(sheets))
+		for k := range sheets {
+			ids = append(ids, k)
+		}
+		sort.Ints(ids)
+		for _, i := range ids {
+			buffer.WriteString(fmt.Sprintf("%d - %s \n", i, sheets[i]))
+		}
+		buffer.WriteString("请选择一个进行加载（请输入左侧编号）：")
+		fmt.Print(buffer.String())
+		sNum := utils.GetInput("")
+		num, err := strconv.Atoi(sNum)
+		if err != nil {
+			fmt.Println("解析输入异常，输入的内容好像不是编号")
+			continue
+		}
+
+		if sheet, ok := sheets[num]; ok {
+			oriData, err := readSheet(file, sheet)
+
+			if err != nil {
+				fmt.Println("读取 Sheet 页数据异常")
+				continue
+			}
+
+			return oriData
+
+		} else {
+			fmt.Println("读取 Sheet 页数据异常，好像没有你输入的这个 Sheet 页")
+			continue
+		}
+	}
+}
+
+func readSheet(file *excelize.File, sheet string) ([][]string, error) {
+	begin := time.Now()
+	rows := file.GetRows(sheet)
+	if len(rows) < 2 {
+		return nil, fmt.Errorf("%s Sheet 页中好像没什么数据", sheet)
+	}
+	fmt.Printf("读取数据 %d 条，耗时 %f 秒\n", len(rows), time.Since(begin).Seconds())
+	return rows, nil
 }
 
 func parseCompanyData(data [][]string) []BillInfo {
