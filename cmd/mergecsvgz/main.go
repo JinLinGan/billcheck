@@ -14,7 +14,7 @@ import (
 
 const FILENAME = "all.csv"
 
-var HEADER = []string{
+var HEADER = []string{ // nolint: gochecknoglobals
 	"记录类别",                  //A
 	"数据记录",                  //B
 	"客户号码",                  //C
@@ -71,7 +71,9 @@ var HEADER = []string{
 
 func main() {
 	var files []os.FileInfo
+
 	var filesPath string
+
 	for {
 		filesPath = utils.GetInput("请输入要合并的文件所在目录：")
 
@@ -82,23 +84,28 @@ func main() {
 			fmt.Println(err)
 			continue
 		}
+
 		break
 	}
 	GetAllData(filesPath, files)
 }
 
 func GetAllData(dir string, files []os.FileInfo) {
-	allLine := []string{}
+	allLine := make([]string, 0, 1000)
+
 	for _, fInfo := range files {
 		if fInfo.IsDir() {
 			continue
 		}
+
 		fullPath := dir + string(os.PathSeparator) + fInfo.Name()
 		newLine, err := GetContentFromFile(fullPath)
+
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
+
 		allLine = append(allLine, newLine...)
 	}
 
@@ -111,54 +118,66 @@ func ParseLine(line string) []string {
 		if i == 19 {
 			continue
 		}
-		if strings.HasPrefix(cells[i], "\"") {
-			cells[i] = cells[i][1:]
-		}
+
+		cells[i] = strings.TrimPrefix(cells[i], "\"")
+
 		if strings.HasSuffix(cells[i], "\"") {
 			cells[i] = cells[i][:len(cells[i])-1]
 		}
 	}
+
 	return cells
 }
 func SaveToCSV(allLine []string) {
 	for {
-		records := [][]string{}
+		var records [][]string
+
 		filePath := utils.GetInput("文件保存目录：")
 
 		fullFileName := filePath + string(os.PathSeparator) + FILENAME
 		f, err := os.OpenFile(fullFileName, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0666)
+
 		if err != nil {
 			fmt.Printf("保存文件失败：%s", err)
 			continue
 		}
+
 		_, err = f.WriteString("\xEF\xBB\xBF")
+
 		if err != nil {
 			fmt.Printf("写入头部文件失败：%s", err)
 			continue
 		}
+
 		w := csv.NewWriter(f)
+
 		for ri := range allLine {
 			cells := ParseLine(allLine[ri])
 			if len(cells) > 0 {
 				records = append(records, cells)
 			}
 		}
+
 		err = w.Write(HEADER)
+
 		if err != nil {
 			fmt.Printf("保存文件失败：%s", err)
 			continue
 		}
+
 		err = w.WriteAll(records)
+
 		if err != nil {
 			fmt.Printf("保存文件失败：%s", err)
 			continue
 		}
+
 		return
 	}
 }
 
 func GetContentFromFile(fullPath string) ([]string, error) {
-	lines := []string{}
+	var lines []string
 
 	file, err := os.Open(fullPath)
 
@@ -181,7 +200,9 @@ func GetContentFromFile(fullPath string) ([]string, error) {
 		if strings.HasPrefix(l, "I\";") {
 			continue
 		}
+
 		lines = append(lines, l)
 	}
+
 	return lines, nil
 }

@@ -12,7 +12,7 @@ import (
 // 获取用户输入
 func GetInput(out string) string {
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print(out)
+	fmt.Print(out + "\n")
 	text, err := reader.ReadString('\n')
 	text = strings.TrimSpace(text)
 	if err != nil {
