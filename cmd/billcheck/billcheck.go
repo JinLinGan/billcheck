@@ -273,6 +273,7 @@ func checkBill(bills []BillInfo, pInfo ...[]PayInfo) (all, notOK []BillInfo) {
 	skipByPlatformCount := 0
 	freeRedoCount := 0
 	similarCount := 0
+	zeroPriseCount := 0
 
 	billPlatformCount := map[string]int{}
 	okBillPlatformCount := map[string]int{}
@@ -281,6 +282,7 @@ func checkBill(bills []BillInfo, pInfo ...[]PayInfo) (all, notOK []BillInfo) {
 	skipByPlatformPlatformCount := map[string]int{}
 	freeRedoPlatformCount := map[string]int{}
 	similarPlatformCount := map[string]int{}
+	zeroPrisePlatformCount := map[string]int{}
 
 	notOKBills := make([]BillInfo, 0, 500000)
 	notOKBills = append(notOKBills, bills[0])
@@ -305,6 +307,13 @@ func checkBill(bills []BillInfo, pInfo ...[]PayInfo) (all, notOK []BillInfo) {
 		if bills[i].IsFreeRedo {
 			freeRedoPlatformCount[bills[i].PlatformName]++
 			freeRedoCount++
+
+			continue
+		}
+
+		if bills[i].TotalPrice == 0 {
+			zeroPrisePlatformCount[bills[i].PlatformName]++
+			zeroPriseCount++
 
 			continue
 		}
@@ -369,6 +378,9 @@ func checkBill(bills []BillInfo, pInfo ...[]PayInfo) (all, notOK []BillInfo) {
 
 	fmt.Printf("有效订单中因平台因素跳过的有 %d 条，占比 %.2f%% \n", skipByPlatformCount, float64(skipByPlatformCount)/float64(billCount-freeRedoCount)*100)
 	PrintPlatformInfo(skipByPlatformPlatformCount, skipByPlatformCount, billPlatformCount)
+
+	fmt.Printf("有效订单中价格为 0 的有 %d 条，占比 %.2f%% \n", zeroPriseCount, float64(zeroPriseCount)/float64(billCount-freeRedoCount)*100)
+	PrintPlatformInfo(zeroPrisePlatformCount, zeroPriseCount, billPlatformCount)
 
 	fmt.Printf("有效订单中正常收款的有 %d 条，占比 %.2f%% \n", okBillCount, float64(okBillCount)/float64(billCount-freeRedoCount)*100)
 	PrintPlatformInfo(okBillPlatformCount, okBillCount, billPlatformCount)
