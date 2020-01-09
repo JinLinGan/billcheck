@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/csv"
 	"fmt"
@@ -180,12 +181,18 @@ func main() {
 	bills := readBillInfo()
 	paypalInfo := readPayPalInfoLoop()
 	worldpayInfo := readWorldPayInfo()
-	all, notOKBills := checkBill(bills, paypalInfo, worldpayInfo)
+	ebanxInfo := readEBANXInfo()
+	ingenicoInfo := readIngenicoInfo()
+	all, notOKBills := checkBill(bills, paypalInfo, worldpayInfo, ebanxInfo, ingenicoInfo)
 
 	fmt.Println("保存异常订单")
 	saveResult(notOKBills, "NotOKBills.csv")
 	fmt.Println("保存所有订单")
 	saveResult(all, "ALLBills.csv")
+
+	//readEBANXInfo()
+	//readIngenicoInfo()
+
 }
 
 func saveResult(bills []BillInfo, fileName string) {
@@ -257,14 +264,15 @@ func saveResult(bills []BillInfo, fileName string) {
 	}
 }
 
-func checkBill(bills []BillInfo, pInfo []PayInfo, wInfo []PayInfo) (all, notOK []BillInfo) {
-	payInfos := getAllPayInfo(pInfo, wInfo)
+func checkBill(bills []BillInfo, pInfo ...[]PayInfo) (all, notOK []BillInfo) {
+	payInfos := getAllPayInfo(pInfo...)
 	billCount := 0
 	okBillCount := 0
 	priceUnequalCount := 0
 	notFoundCount := 0
 	skipByPlatformCount := 0
 	freeRedoCount := 0
+	similarCount := 0
 
 	billPlatformCount := map[string]int{}
 	okBillPlatformCount := map[string]int{}
@@ -272,6 +280,7 @@ func checkBill(bills []BillInfo, pInfo []PayInfo, wInfo []PayInfo) (all, notOK [
 	notFoundPlatformCount := map[string]int{}
 	skipByPlatformPlatformCount := map[string]int{}
 	freeRedoPlatformCount := map[string]int{}
+	similarPlatformCount := map[string]int{}
 
 	notOKBills := make([]BillInfo, 0, 500000)
 	notOKBills = append(notOKBills, bills[0])
@@ -283,19 +292,19 @@ func checkBill(bills []BillInfo, pInfo []PayInfo, wInfo []PayInfo) (all, notOK [
 		billPlatformCount[bills[i].PlatformName]++
 		billCount++
 
-		if bills[i].IsFreeRedo {
-			freeRedoPlatformCount[bills[i].PlatformName]++
-			freeRedoCount++
-
-			continue
-		}
-
 		if bills[i].IsSkipByPlatform {
 			bills[i].CheckStatus = "跳过此平台"
 			bills[i].CheckPrice = 0
 			notOKBills = append(notOKBills, bills[i])
 			skipByPlatformPlatformCount[bills[i].PlatformName]++
 			skipByPlatformCount++
+
+			continue
+		}
+
+		if bills[i].IsFreeRedo {
+			freeRedoPlatformCount[bills[i].PlatformName]++
+			freeRedoCount++
 
 			continue
 		}
@@ -315,12 +324,34 @@ func checkBill(bills []BillInfo, pInfo []PayInfo, wInfo []PayInfo) (all, notOK [
 				priceUnequalCount++
 			}
 		} else {
-			//log.Warn(fmt.Sprintf("订单号 '%s' 未找到收款", bills[i].BillID))
-			bills[i].CheckStatus = "未找到收款"
-			bills[i].CheckPrice = 0
+			foundSimilar := false
+
+			//fmt.Println("=== 开始查找疑似订单 ===")
+			for pID, v := range payInfos {
+				if strings.HasSuffix(pID, bills[i].BillID) {
+					bills[i].CheckStatus = "找到至少一个疑似订单"
+					bills[i].CheckPrice = v.TotalPrice
+					foundSimilar = true
+
+					log.Warn(fmt.Sprintf("订单 %q 疑似订单号 %q, 期望价格 %.2f 实际价格 %.2f", bills[i].BillID, pID, bills[i].TotalPrice, v.TotalPrice))
+
+					break
+				}
+			}
+
+			//fmt.Println("=== 结束查找疑似订单 ===")
+			if foundSimilar {
+
+				similarPlatformCount[bills[i].PlatformName]++
+				similarCount++
+			} else {
+				bills[i].CheckStatus = "未找到收款"
+				bills[i].CheckPrice = 0
+				notFoundPlatformCount[bills[i].PlatformName]++
+				notFoundCount++
+			}
+
 			notOKBills = append(notOKBills, bills[i])
-			notFoundPlatformCount[bills[i].PlatformName]++
-			notFoundCount++
 
 		}
 	}
@@ -334,6 +365,8 @@ func checkBill(bills []BillInfo, pInfo []PayInfo, wInfo []PayInfo) (all, notOK [
 	fmt.Printf("重做订单 %d 条，占比 %.2f%% \n", freeRedoCount, float64(freeRedoCount)/float64(billCount)*100)
 	PrintPlatformInfo(freeRedoPlatformCount, freeRedoCount, billPlatformCount)
 
+	fmt.Println()
+
 	fmt.Printf("有效订单中因平台因素跳过的有 %d 条，占比 %.2f%% \n", skipByPlatformCount, float64(skipByPlatformCount)/float64(billCount-freeRedoCount)*100)
 	PrintPlatformInfo(skipByPlatformPlatformCount, skipByPlatformCount, billPlatformCount)
 
@@ -342,6 +375,9 @@ func checkBill(bills []BillInfo, pInfo []PayInfo, wInfo []PayInfo) (all, notOK [
 
 	fmt.Printf("有效订单中金额不匹配的有 %d 条，占比 %.2f%% \n", priceUnequalCount, float64(priceUnequalCount)/float64(billCount-freeRedoCount)*100)
 	PrintPlatformInfo(priceUnequalPlatformCount, priceUnequalCount, billPlatformCount)
+
+	fmt.Printf("有效订单中未找到收款记录但是有相似的订单号的有 %d 条，占比 %.2f%% \n", similarCount, float64(similarCount)/float64(billCount-freeRedoCount)*100)
+	PrintPlatformInfo(similarPlatformCount, similarCount, billPlatformCount)
 
 	fmt.Printf("有效订单中未找到收款记录的有 %d 条，占比 %.2f%% \n", notFoundCount, float64(notFoundCount)/float64(billCount-freeRedoCount)*100)
 	PrintPlatformInfo(notFoundPlatformCount, notFoundCount, billPlatformCount)
@@ -390,6 +426,119 @@ func getAllPayInfo(payInfosList ...[]PayInfo) map[string]PayInfo {
 	return pays
 }
 
+func readIngenicoInfo() []PayInfo {
+	payInfos := make([]PayInfo, 0, 500000)
+
+	for {
+		fileName := utils.GetInput("请输入 Ingenico 收款平台数据文件（输入回车停止加载）：")
+		if fileName == "" {
+			return payInfos
+		}
+
+		f, err := os.Open(fileName)
+		if err != nil {
+			log.Warnf("读取 CSV 文件异常： %s", err)
+			continue
+		}
+
+		//oriData, err := readCSVFile(f)
+		oriData := make([][]string, 0, 10000)
+		scan := bufio.NewScanner(f)
+		for scan.Scan() {
+			line := scan.Text()
+			oriData = append(oriData, strings.Split(line, ","))
+
+		}
+		f.Close()
+
+		if err != nil {
+			log.Warnf("读取 CSV 文件异常： %s", err)
+			continue
+		}
+
+		newPayInfo := parseIngenicoData(oriData)
+		payInfos = append(payInfos, newPayInfo...)
+
+		fmt.Printf("目前 Ingenico 付款信息一共有 %d 条\n", len(payInfos))
+	}
+}
+
+func parseIngenicoData(oriData [][]string) []PayInfo {
+	fmt.Printf("文件中共有 %d 条信息 \n", len(oriData)-1)
+
+	p := make([]PayInfo, 0, 500000)
+
+	for i := 1; i < len(oriData); i++ {
+		if oriData[i][0] != "+" {
+			continue
+		}
+		billPrice, err := strconv.ParseFloat(oriData[i][12], 32)
+		if err != nil {
+			log.Warn(fmt.Sprintf("金额格式错误 %s", oriData[i][7]))
+			continue
+		}
+
+		p = append(p, PayInfo{
+			BillID:     strings.ToLower(oriData[i][9]),
+			TotalPrice: billPrice / 100,
+		})
+	}
+
+	fmt.Printf("文件付款信息有 %d 条\n", len(p))
+
+	return p
+}
+
+func readEBANXInfo() []PayInfo {
+	payInfos := make([]PayInfo, 0, 500000)
+
+	for {
+		fileName := utils.GetInput("请输入 EBANX 收款平台数据文件（输入回车停止加载）：")
+		if fileName == "" {
+			return payInfos
+		}
+
+		begin := time.Now()
+
+		f, err := xlsx.OpenFile(fileName)
+		if err != nil {
+			log.Warnf("读取 Excel 文件异常： %s", err)
+			continue
+		}
+
+		fmt.Printf("xlsx.OpenFile 耗时 %f 秒\n", time.Since(begin).Seconds())
+
+		oriData := readExcelSheet(f)
+		newPayInfo := parseEBANXData(oriData)
+		payInfos = append(payInfos, newPayInfo...)
+
+		fmt.Printf("目前 EBANX 付款信息一共有 %d 条\n", len(payInfos))
+	}
+}
+
+func parseEBANXData(oriData [][]string) []PayInfo {
+	fmt.Printf("文件中共有 %d 条信息 \n", len(oriData)-1)
+
+	p := make([]PayInfo, 0, 500000)
+
+	for i := 1; i < len(oriData); i++ {
+		billPrice, err := strconv.ParseFloat(oriData[i][7], 32)
+		if err != nil {
+			log.Warn(fmt.Sprintf("金额格式错误 %s", oriData[i][7]))
+			continue
+		}
+
+		p = append(p, PayInfo{
+			BillID:     strings.ToLower(oriData[i][5]),
+			TotalPrice: billPrice,
+		})
+	}
+
+	fmt.Printf("文件付款信息有 %d 条\n", len(p))
+
+	return p
+}
+
 func readWorldPayInfo() []PayInfo {
 	payInfos := make([]PayInfo, 0, 500000)
 
@@ -399,11 +548,15 @@ func readWorldPayInfo() []PayInfo {
 			return payInfos
 		}
 
+		begin := time.Now()
+
 		f, err := xlsx.OpenFile(fileName)
 		if err != nil {
 			log.Warnf("读取 Excel 文件异常： %s", err)
 			continue
 		}
+
+		fmt.Printf("xlsx.OpenFile 耗时 %f 秒\n", time.Since(begin).Seconds())
 
 		oriData := readExcelSheet(f)
 		newPayInfo := parseWorldPayData(oriData)
@@ -427,7 +580,7 @@ func parseWorldPayData(oriData [][]string) []PayInfo {
 			}
 
 			p = append(p, PayInfo{
-				BillID:     row[0],
+				BillID:     strings.ToLower(row[0]),
 				TotalPrice: billPrice,
 			})
 		}
@@ -487,7 +640,7 @@ func parsePayPalData(oriData [][]string) []PayInfo {
 			}
 
 			p = append(p, PayInfo{
-				BillID:     row[16],
+				BillID:     strings.ToLower(row[16]),
 				TotalPrice: billPrice,
 			})
 		}
@@ -551,7 +704,7 @@ func readExcelSheet(file *xlsx.File) [][]string {
 	}
 }
 func readSheet(sheet *xlsx.Sheet) [][]string {
-	begin := time.Now()
+	//begin := time.Now()
 	rs := make([][]string, len(sheet.Rows))
 
 	for i := range sheet.Rows {
@@ -563,7 +716,7 @@ func readSheet(sheet *xlsx.Sheet) [][]string {
 		rs[i] = r
 	}
 
-	fmt.Printf("读取数据 %d 条，耗时 %f 秒\n", len(sheet.Rows), time.Since(begin).Seconds())
+	fmt.Printf("读取数据 %d 条\n", len(sheet.Rows))
 
 	return rs
 }
@@ -615,7 +768,7 @@ func parseCompanyData(data [][]string) []BillInfo {
 				OriBillNum:       data[rowIndex][3],
 				TotalPrice:       billPrice,
 				OldData:          data[rowIndex],
-				BillID:           prefix + data[rowIndex][3],
+				BillID:           strings.ToLower(prefix + data[rowIndex][3]),
 			})
 			billCount++
 		} else {
