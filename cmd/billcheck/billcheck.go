@@ -90,6 +90,10 @@ var PlatformGroup = map[string]string{ // nolint: gochecknoglobals
 	"079-穆斯林首饰站-islamicnecklace.com":    "所有站群",
 	"015-脚丫款品类 - feetale.com":           "所有站群",
 	"038-家庭生辰石系列 - familytreehut.com":   "所有站群",
+	"070-月光石系列-moonstonegift.com":       "所有站群",
+	"072-铭记系列-soulmin.com":              "所有站群",
+	"071-铭记系列-memorywe.com":             "所有站群",
+	"025-名字品类 - blingblingname.com":     "所有站群",
 }
 
 var PlatformOrderPrefix = map[string]string{ // nolint: gochecknoglobals
@@ -147,6 +151,12 @@ var PlatformOrderPrefix = map[string]string{ // nolint: gochecknoglobals
 	"078-自然花系列-flowerwe.com":            "flowerwe-",
 	"017-月亮款品类 - moonoble.com":          "moonoble-",
 	"054-袜子 - thepupsocks.com":          "thepupsocks-",
+	"070-月光石系列-moonstonegift.com":       "moonstonegift",
+	"Shopify平台 - Pettsy.com":            "pettsy",
+	"072-铭记系列-soulmin.com":              "soulmin",
+	"071-铭记系列-memorywe.com":             "memorywe",
+	"Shopify平台 - lightfulname.com":      "lightfulname",
+	"025-名字品类 - blingblingname.com":     "blingblingname",
 }
 
 type BillInfo struct {
@@ -192,7 +202,6 @@ func main() {
 
 	//readEBANXInfo()
 	//readIngenicoInfo()
-
 }
 
 func saveResult(bills []BillInfo, fileName string) {
@@ -342,7 +351,8 @@ func checkBill(bills []BillInfo, pInfo ...[]PayInfo) (all, notOK []BillInfo) {
 					bills[i].CheckPrice = v.TotalPrice
 					foundSimilar = true
 
-					log.Warn(fmt.Sprintf("订单 %q 疑似订单号 %q, 期望价格 %.2f 实际价格 %.2f", bills[i].BillID, pID, bills[i].TotalPrice, v.TotalPrice))
+					log.Warn(fmt.Sprintf("订单 %q 疑似订单号 %q, 期望价格 %.2f 实际价格 %.2f",
+						bills[i].BillID, pID, bills[i].TotalPrice, v.TotalPrice))
 
 					break
 				}
@@ -350,7 +360,6 @@ func checkBill(bills []BillInfo, pInfo ...[]PayInfo) (all, notOK []BillInfo) {
 
 			//fmt.Println("=== 结束查找疑似订单 ===")
 			if foundSimilar {
-
 				similarPlatformCount[bills[i].PlatformName]++
 				similarCount++
 			} else {
@@ -361,7 +370,6 @@ func checkBill(bills []BillInfo, pInfo ...[]PayInfo) (all, notOK []BillInfo) {
 			}
 
 			notOKBills = append(notOKBills, bills[i])
-
 		}
 	}
 
@@ -455,12 +463,13 @@ func readIngenicoInfo() []PayInfo {
 
 		//oriData, err := readCSVFile(f)
 		oriData := make([][]string, 0, 10000)
+
 		scan := bufio.NewScanner(f)
 		for scan.Scan() {
 			line := scan.Text()
 			oriData = append(oriData, strings.Split(line, ","))
-
 		}
+
 		f.Close()
 
 		if err != nil {
@@ -484,7 +493,9 @@ func parseIngenicoData(oriData [][]string) []PayInfo {
 		if oriData[i][0] != "+" {
 			continue
 		}
+
 		billPrice, err := strconv.ParseFloat(oriData[i][12], 32)
+
 		if err != nil {
 			log.Warn(fmt.Sprintf("金额格式错误 %s", oriData[i][7]))
 			continue
