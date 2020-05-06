@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/csv"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"strconv"
@@ -21,8 +22,8 @@ import (
 var SkipPlatform = []string{ // nolint: gochecknoglobals
 	"aliexpress",
 	"批发商订单专用平台",
-	"Amazon - 1",
-	"Amazon - 2",
+	"Amazon-getname美国",
+	"Amazon-AILIN美国",
 	"营销样品",
 }
 
@@ -153,10 +154,26 @@ var PlatformOrderPrefix = map[string]string{ // nolint: gochecknoglobals
 	"054-袜子 - thepupsocks.com":          "thepupsocks-",
 	"070-月光石系列-moonstonegift.com":       "moonstonegift",
 	"Shopify平台 - Pettsy.com":            "pettsy",
-	"072-铭记系列-soulmin.com":              "soulmin",
-	"071-铭记系列-memorywe.com":             "memorywe",
+	"072-铭记系列-soulmin.com":              "soulmin-",
+	"071-铭记系列-memorywe.com":             "memorywe-",
 	"Shopify平台 - lightfulname.com":      "lightfulname",
 	"025-名字品类 - blingblingname.com":     "blingblingname",
+	"087-产品广告站-insgifts.com":            "insgifts-",
+	"revederose.fr-法语":                  "revederose-",
+	"getnamenecklace.co.uk英国站":          "getnamenecklace_uk-",
+	"089-bycute.com":                    "bycute-",
+	"traumvonrose.com-德语":               "traumvonrose-",
+	"084-产品广告站-presenthut.com":          "presenthut-",
+	"083-产品广告站-mutterkette.com-德语":      "mutterkette-",
+	"081-测试产品-personalizedbuy.com":      "personalizedbuy-",
+	"092-德语-Familieinspiriert.de":       "familieinspiriert-",
+	"086-产品广告站-lisaname.com":            "lisaname-",
+	"093-法语-inspiredelafamille.fr":      "inspiredelafamille-",
+	"082-产品广告站-soyougift.com":           "soyougift-",
+	"085-产品广告站-collierfamille.com-法语":   "collierfamille-",
+	"088-系列-artsdice.com":               "artsdice-",
+	"Beaustar.co.uk":                    "beaustar-",
+	"023-照片品类 - beportrait.com":         "beportrait-",
 }
 
 type BillInfo struct {
@@ -328,7 +345,7 @@ func checkBill(bills []BillInfo, pInfo ...[]PayInfo) (all, notOK []BillInfo) {
 		}
 
 		if v, ok := payInfos[bills[i].BillID]; ok {
-			if v.TotalPrice == bills[i].TotalPrice {
+			if math.Abs(v.TotalPrice-bills[i].TotalPrice) < 0.01 {
 				bills[i].CheckStatus = "正常"
 				bills[i].CheckPrice = v.TotalPrice
 				okBillPlatformCount[bills[i].PlatformName]++
@@ -490,10 +507,14 @@ func parseIngenicoData(oriData [][]string) []PayInfo {
 	p := make([]PayInfo, 0, 500000)
 
 	for i := 1; i < len(oriData); i++ {
+		// fmt.Printf("%q\n", oriData[i][0])
+		// fmt.Print(len(oriData[i]))
 		if oriData[i][0] != "+" {
 			continue
 		}
 
+		// fmt.Println(oriData[i][9])
+		// fmt.Println(oriData[i][12])
 		billPrice, err := strconv.ParseFloat(oriData[i][12], 32)
 
 		if err != nil {
@@ -655,7 +676,7 @@ func parsePayPalData(oriData [][]string) []PayInfo {
 	p := make([]PayInfo, 0, 500000)
 
 	for _, row := range oriData {
-		if row[3] == "快速結帳付款" || row[3] == "快速结账付款" {
+		if row[3] == "快速結帳付款" || row[3] == "快速结账付款" || row[3] == "Express Checkout Payment" {
 			billPrice, err := strconv.ParseFloat(strings.ReplaceAll(row[5], ",", ""), 32)
 			if err != nil {
 				log.Warn(fmt.Sprintf("金额格式错误 %s", row[5]))
